@@ -102,7 +102,7 @@ body{
 .tip[hidden]{display:none}
 .frame svg{
   display:block; width:100%; height:auto; border-radius:2px; --k:1;
-  touch-action:pan-y; cursor:grab;
+  touch-action:pan-y pinch-zoom; cursor:grab;   /* let phones pinch-zoom the map */
   -webkit-user-select:none; user-select:none;   /* panning must not select label text */
 }
 .frame svg.grabbing{cursor:grabbing}
