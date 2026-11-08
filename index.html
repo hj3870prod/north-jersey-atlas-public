@@ -1,4 +1,5 @@
 <title>North Jersey County Atlas</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap">
@@ -102,7 +103,8 @@ body{
 .tip[hidden]{display:none}
 .frame svg{
   display:block; width:100%; height:auto; border-radius:2px; --k:1;
-  touch-action:pan-y pinch-zoom; cursor:grab;   /* let phones pinch-zoom the map */
+  /* one finger scrolls the page; two fingers are handled as a map pinch below */
+  touch-action:pan-y; cursor:grab;
   -webkit-user-select:none; user-select:none;   /* panning must not select label text */
 }
 .frame svg.grabbing{cursor:grabbing}
@@ -148,14 +150,17 @@ figure{margin:0; display:flex; flex-direction:column; gap:13px}
 .rail.r-njt{stroke:var(--rail); stroke-width:1.8}
 .rail.r-path{stroke:var(--path); stroke-width:1.8}
 .rail.r-lrt{stroke:var(--lrt); stroke-width:1.6; stroke-dasharray:5 3.5}
+/* Symbols hold their size on screen like the type does, but with a floor on the
+   divisor: on a phone the whole map is small, and dots pinned to a full 3.2px
+   would swallow it. --k below the floor means the symbols shrink with the map. */
 .sta-ring{
   fill:var(--casing); stroke:var(--rail); stroke-width:1.4;
-  vector-effect:non-scaling-stroke; r:calc(3.2px / var(--k));
+  vector-effect:non-scaling-stroke; r:calc(3.2px / max(var(--k), 0.45));
 }
 .sta-ring.s-path{stroke:var(--path)}
-.sta-ring.s-lrt{stroke:var(--lrt); r:calc(2.5px / var(--k))}
-.sta-core{fill:var(--path); r:calc(1.6px / var(--k))}
-.sta-hit{fill:transparent; r:calc(8px / var(--k))}
+.sta-ring.s-lrt{stroke:var(--lrt); r:calc(2.5px / max(var(--k), 0.45))}
+.sta-core{fill:var(--path); r:calc(1.6px / max(var(--k), 0.45))}
+.sta-hit{fill:transparent; r:calc(8px / max(var(--k), 0.45))}
 .stalab{
   font-family:"IBM Plex Sans Condensed",sans-serif; font-size:calc(10.5px / var(--k));
   font-weight:500; fill:var(--stalab); text-anchor:middle; paint-order:stroke;
@@ -163,6 +168,18 @@ figure{margin:0; display:flex; flex-direction:column; gap:13px}
 }
 .hide{display:none}
 svg.measuring .town,svg.measuring .stalab,svg.measuring .co-label{visibility:hidden}
+/* Non-scaling strokes are constant in screen pixels, which reads as heavy once
+   the map itself is phone-sized. Thin the line work to match. */
+@media (max-width:760px){
+  .rail-casing.r-njt{stroke-width:2.6} .rail-casing.r-path{stroke-width:2.5}
+  .rail-casing.r-lrt{stroke-width:2.2}
+  .rail.r-njt,.rail.r-path{stroke-width:1.1}
+  .rail.r-lrt{stroke-width:1; stroke-dasharray:3.5 2.5}
+  .focus-ring{stroke-width:1.8}
+  .border--county{stroke-width:1.1}
+  .muni{stroke-width:.35}
+  .sta-ring{stroke-width:1}
+}
 .scale text,.rose text{font-family:"IBM Plex Mono",monospace; font-size:11.5px; fill:var(--map-label); fill-opacity:.8}
 .scale line{stroke:var(--map-label); stroke-opacity:.8; stroke-width:1.3; vector-effect:non-scaling-stroke}
 .rose path{fill:var(--map-label); fill-opacity:.75}
@@ -485,11 +502,18 @@ footer{
 
   /* ---------- zoom + pan ---------- */
   var k=1, tx=0, ty=0, MAX=16, lvl=null, tiered=[];
+  /* How many screen pixels one viewBox unit occupies right now. Labels and station
+     dots divide by --k to hold a constant SIZE ON SCREEN, so --k has to carry this
+     ratio too \u2014 otherwise a phone 375px wide renders 12px type at about 4px. */
+  function renderRatio(){
+    var w=svg.clientWidth || svg.getBoundingClientRect().width;
+    return w ? w/W : 1;
+  }
   function apply(){
     k=Math.max(1,Math.min(MAX,k));
     tx=Math.min(0,Math.max(W-W*k,tx)); ty=Math.min(0,Math.max(H-H*k,ty));
     z.setAttribute("transform","translate("+tx.toFixed(2)+" "+ty.toFixed(2)+") scale("+k.toFixed(4)+")");
-    svg.style.setProperty("--k",k.toFixed(4));
+    svg.style.setProperty("--k",(k*renderRatio()).toFixed(4));
     for(var i=0;i<tiered.length;i++){
       var e=tiered[i], xz=e.getAttribute("data-xz");
       var off = k < (+e.getAttribute("data-mz"))-0.001 || (xz && k > +xz);
@@ -522,8 +546,29 @@ footer{
     e.preventDefault(); var p=at(e);
     zoomTo(e.shiftKey?k/1.8:k*1.8, p.x, p.y);
   });
-  var drag=null;
+  /* Touch: one finger scrolls the page (touch-action: pan-y), two fingers pinch
+     and drag the MAP \u2014 changing its own zoom level, so more names appear, rather
+     than the browser magnifying the page like a picture. */
+  var drag=null, touches=new Map(), pinch=null;
+  function sep(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+  function twoFingers(){
+    var v=[]; touches.forEach(function(p){ v.push(p); }); return v;
+  }
+  function endPinch(){
+    pinch=null;
+    if(touches.size===0) svg.style.touchAction="";
+  }
   svg.addEventListener("pointerdown",function(e){
+    if(e.pointerType==="touch"){
+      touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+      if(touches.size===2){
+        var v=twoFingers();
+        pinch={d:sep(v[0],v[1]), mx:(v[0].x+v[1].x)/2, my:(v[0].y+v[1].y)/2};
+        svg.style.touchAction="none";   /* keep the page still during the gesture */
+        hideTip();
+      }
+      return;                            /* a single finger is left to the page */
+    }
     if(e.button!==0) return;
     e.preventDefault();                 /* stop the native text-drag selection */
     drag={x:e.clientX,y:e.clientY,tx:tx,ty:ty};
@@ -531,12 +576,34 @@ footer{
     svg.classList.add("grabbing");
   });
   svg.addEventListener("pointermove",function(e){
+    if(e.pointerType==="touch"){
+      if(!touches.has(e.pointerId)) return;
+      touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+      if(touches.size!==2 || !pinch) return;
+      e.preventDefault();
+      var v=twoFingers(), d=sep(v[0],v[1]);
+      var mx=(v[0].x+v[1].x)/2, my=(v[0].y+v[1].y)/2;
+      var r=svg.getBoundingClientRect(), s=W/r.width;
+      var px=(mx-r.left)*s, py=(my-r.top)*s;          /* pinch centre, map units */
+      var nk=Math.max(1,Math.min(MAX, k*(pinch.d?d/pinch.d:1)));
+      var f=nk/k;
+      tx=px-(px-tx)*f; ty=py-(py-ty)*f; k=nk;         /* zoom about the fingers */
+      tx+=(mx-pinch.mx)*s; ty+=(my-pinch.my)*s;       /* and follow them */
+      apply();
+      pinch.d=d; pinch.mx=mx; pinch.my=my;
+      return;
+    }
     if(!drag) return;
-    var r=svg.getBoundingClientRect(), s=W/r.width;
-    tx=drag.tx+(e.clientX-drag.x)*s; ty=drag.ty+(e.clientY-drag.y)*s;
+    var r2=svg.getBoundingClientRect(), s2=W/r2.width;
+    tx=drag.tx+(e.clientX-drag.x)*s2; ty=drag.ty+(e.clientY-drag.y)*s2;
     apply();
-  });
+  },{passive:false});
   function endDrag(e){
+    if(e && e.pointerType==="touch"){
+      touches.delete(e.pointerId);
+      if(touches.size<2) endPinch();
+      return;
+    }
     if(!drag) return;
     drag=null; svg.classList.remove("grabbing");
     try{svg.releasePointerCapture(e.pointerId);}catch(_){}
@@ -699,12 +766,19 @@ footer{
   }
   function layout(){
     var Z=G.zooms, all=[];
+    /* Measured with the labels at their true on-screen size, so a narrow phone
+       fits fewer names per zoom step than a wide desktop. Re-run on resize. */
+    svg.classList.add("measuring");
+    svg.style.setProperty("--k",renderRatio().toFixed(4));
     /* Stations claim space ahead of ordinary town names, and from the first zoom
        step, so station names are on the map at the default view rather than
        waiting for the reader to zoom in. */
     [{items:focusLabels,first:Z[0]},{items:coLabels,first:Z[0]},
      {items:staLabels,first:Z[0]},{items:townLabels,first:Z[0]}].forEach(function(g){
       g.items.forEach(function(it){
+        it.el.classList.remove("hide");
+        it.el.removeAttribute("data-mz");
+        it.el.setAttribute("x",it.x); it.el.setAttribute("y",it.y);
         var b=it.el.getBBox();
         all.push({el:it.el, ax:it.x, ay:it.y, dx:b.x-it.x, dy:b.y-it.y,
                   w:b.width+5, h:b.height+2, first:g.first, mz:0,
@@ -746,7 +820,7 @@ footer{
         }
         kept++;
       }
-      else it.el.parentNode.removeChild(it.el);
+      else it.el.classList.add("hide");   /* kept in the DOM so resize can re-fit */
     });
     tiered=svg.querySelectorAll("[data-mz]");
     svg.classList.remove("measuring");
@@ -754,5 +828,24 @@ footer{
   }
   layout();
   apply();
+
+  /* Label sizes are relative to the rendered width, so anything that changes that
+     width - rotating a phone, resizing a window, the pane around us - needs a
+     fresh fit. ResizeObserver catches all of them, including the cases that never
+     fire a window resize event. */
+  var lastW=svg.getBoundingClientRect().width || 1, relayout=null;
+  function refit(){
+    var w=svg.getBoundingClientRect().width;
+    if(!w || Math.abs(w-lastW)/lastW < 0.02) return;
+    lastW=w;
+    clearTimeout(relayout);
+    relayout=setTimeout(function(){ layout(); apply(); },180);
+  }
+  addEventListener("resize",refit);
+  addEventListener("orientationchange",refit);
+  if(window.ResizeObserver) new ResizeObserver(refit).observe(svg);
+  /* Web fonts change text metrics, so a fit measured before they land is wrong. */
+  if(document.fonts && document.fonts.ready)
+    document.fonts.ready.then(function(){ layout(); apply(); });
 })();
 </script>
