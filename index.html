@@ -320,7 +320,7 @@ footer{
     <div class="frame"><svg id="map"></svg><div class="tip" id="tip" hidden></div></div>
     <div class="keyline">
       <ul class="keyrow" id="railkey"></ul>
-      <div class="hint">Drag to pan &middot; double-click to zoom in, shift&#8209;double&#8209;click out &middot; ctrl or &#8984; with the scroll wheel also zooms</div>
+      <div class="hint">Drag to pan &middot; double-click to zoom in, shift&#8209;double&#8209;click out &middot; ctrl or &#8984; with the scroll wheel also zooms. On a phone, pinch to zoom, then drag with one finger.</div>
     </div>
     <figcaption>The nine counties run from Sussex and Warren in the northwest down to Middlesex in the south. Essex is the dense one in the middle &mdash; 126 square miles holding 22 municipalities &mdash; and nearly every rail line converges on Newark, Hoboken and Secaucus before crossing the Hudson.</figcaption>
   </figure>
@@ -521,6 +521,7 @@ footer{
     }
     if(lvl) lvl.textContent=k.toFixed(1)+"\u00d7";
     drawScale(k);
+    syncTouch();   /* zoomed in, a finger drags the map; at 1x it scrolls the page */
   }
   function at(e){
     var r=svg.getBoundingClientRect();
@@ -549,25 +550,32 @@ footer{
   /* Touch: one finger scrolls the page (touch-action: pan-y), two fingers pinch
      and drag the MAP \u2014 changing its own zoom level, so more names appear, rather
      than the browser magnifying the page like a picture. */
-  var drag=null, touches=new Map(), pinch=null;
+  var drag=null, touches=new Map(), pinch=null, taState=null;
   function sep(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
-  function twoFingers(){
+  function fingers(){
     var v=[]; touches.forEach(function(p){ v.push(p); }); return v;
   }
-  function endPinch(){
-    pinch=null;
-    if(touches.size===0) svg.style.touchAction="";
+  /* At 1x the whole map is on screen, so a finger is better spent scrolling the
+     page. Once zoomed there is somewhere to go, so the map takes the gesture and
+     one finger drags it. Zoom back out (or Reset) to scroll the page again. */
+  function syncTouch(){
+    var want = (pinch || k > 1.001) ? "none" : "";
+    if(want !== taState){ taState = want; svg.style.touchAction = want; }
   }
   svg.addEventListener("pointerdown",function(e){
     if(e.pointerType==="touch"){
       touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
       if(touches.size===2){
-        var v=twoFingers();
+        drag=null;
+        var v=fingers();
         pinch={d:sep(v[0],v[1]), mx:(v[0].x+v[1].x)/2, my:(v[0].y+v[1].y)/2};
-        svg.style.touchAction="none";   /* keep the page still during the gesture */
+        hideTip(); syncTouch();
+      } else if(touches.size===1 && k > 1.001){
+        drag={x:e.clientX,y:e.clientY,tx:tx,ty:ty};
+        try{svg.setPointerCapture(e.pointerId);}catch(_){}
         hideTip();
       }
-      return;                            /* a single finger is left to the page */
+      return;
     }
     if(e.button!==0) return;
     e.preventDefault();                 /* stop the native text-drag selection */
@@ -579,9 +587,16 @@ footer{
     if(e.pointerType==="touch"){
       if(!touches.has(e.pointerId)) return;
       touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+      if(touches.size===1 && drag){          /* one finger drags the zoomed map */
+        e.preventDefault();
+        var r1=svg.getBoundingClientRect(), s1=W/r1.width;
+        tx=drag.tx+(e.clientX-drag.x)*s1; ty=drag.ty+(e.clientY-drag.y)*s1;
+        apply();
+        return;
+      }
       if(touches.size!==2 || !pinch) return;
       e.preventDefault();
-      var v=twoFingers(), d=sep(v[0],v[1]);
+      var v=fingers(), d=sep(v[0],v[1]);
       var mx=(v[0].x+v[1].x)/2, my=(v[0].y+v[1].y)/2;
       var r=svg.getBoundingClientRect(), s=W/r.width;
       var px=(mx-r.left)*s, py=(my-r.top)*s;          /* pinch centre, map units */
@@ -601,7 +616,17 @@ footer{
   function endDrag(e){
     if(e && e.pointerType==="touch"){
       touches.delete(e.pointerId);
-      if(touches.size<2) endPinch();
+      try{svg.releasePointerCapture(e.pointerId);}catch(_){}
+      if(touches.size<2) pinch=null;
+      if(touches.size===1 && k > 1.001){
+        /* lifting one finger after a pinch: carry on dragging with the other,
+           re-seated so the map does not jump */
+        var rem=fingers()[0];
+        drag={x:rem.x,y:rem.y,tx:tx,ty:ty};
+      } else if(touches.size===0){
+        drag=null;
+      }
+      syncTouch();
       return;
     }
     if(!drag) return;
