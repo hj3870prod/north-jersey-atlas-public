@@ -6,7 +6,7 @@ NJ Transit commuter rail, PATH and light rail network.
 
 **Live map:** https://hj3870prod.github.io/north-jersey-atlas-public/
 
-Montclair, West Orange, Bloomfield and Clifton are outlined in red: three Essex
+Montclair, West Orange, Bloomfield and Clifton are named in red: three Essex
 County towns and one Passaic County town that read as one continuous area on the
 ground but sit under two county governments.
 

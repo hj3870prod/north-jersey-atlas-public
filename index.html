@@ -149,8 +149,6 @@ figure{margin:0; display:flex; flex-direction:column; gap:13px}
   letter-spacing:.015em; stroke-width:calc(3.4px / var(--k)); stroke-opacity:.8;
 }
 .muni{stroke:var(--map-label); stroke-width:.5; stroke-opacity:.3; vector-effect:non-scaling-stroke; transition:fill-opacity .12s ease}
-.muni--focus{stroke:var(--accent); stroke-width:1; stroke-opacity:.9}
-.focus-ring{fill:none; stroke:var(--accent); stroke-width:2.6; stroke-linejoin:round; vector-effect:non-scaling-stroke}
 .c-sussex{fill:var(--co-sussex)} .c-warren{fill:var(--co-warren)} .c-morris{fill:var(--co-morris)}
 .c-passaic{fill:var(--co-passaic)} .c-bergen{fill:var(--co-bergen)} .c-essex{fill:var(--co-essex)}
 .c-hudson{fill:var(--co-hudson)} .c-union{fill:var(--co-union)} .c-middlesex{fill:var(--co-middlesex)}
@@ -189,7 +187,6 @@ svg.measuring .town,svg.measuring .stalab,svg.measuring .co-label{visibility:hid
   .rail-casing.r-lrt{stroke-width:2.2}
   .rail.r-njt,.rail.r-path{stroke-width:1.1}
   .rail.r-lrt{stroke-width:1; stroke-dasharray:3.5 2.5}
-  .focus-ring{stroke-width:1.8}
   .border--county{stroke-width:1.1}
   .muni{stroke-width:.35}
   .sta-ring{stroke-width:1}
@@ -200,7 +197,6 @@ svg.measuring .town,svg.measuring .stalab,svg.measuring .co-label{visibility:hid
 .rose line{stroke:var(--map-label); stroke-opacity:.55; stroke-width:1.2; vector-effect:non-scaling-stroke}
 svg.dim .muni:not(.on){fill-opacity:.22; stroke-opacity:.12}
 svg.dim .town:not(.on-t){opacity:.28}
-svg.dim .focus-ring{stroke-opacity:.35}
 
 .controls{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px}
 .readout{
@@ -320,7 +316,7 @@ footer{
         <div class="plate-no">The plate</div>
         <h2>Nine counties, 251 towns</h2>
       </div>
-      <div class="plate-sub">Montclair, West&nbsp;Orange, Bloomfield and Clifton are outlined in red. Hover any town or station; use the views below to jump.</div>
+      <div class="plate-sub">Hover any town for its home value, income and population, or any station for the lines serving it. Use the views below to jump.</div>
     </div>
     <div class="controls">
       <div class="readout" id="readout" aria-live="polite">Hover any town or station for its details.</div>
@@ -437,7 +433,7 @@ footer{
 
   var gm=el("g",{}), muniOf=new Map();
   G.munis.forEach(function(m){
-    var q=el("path",{"class":"muni c-"+m.k+(m.f?" muni--focus":"")+" k-"+m.k,d:m.d});
+    var q=el("path",{"class":"muni c-"+m.k+" k-"+m.k,d:m.d});
     q.setAttribute("data-n",m.dn);
     muniOf.set(q,m);
     gm.appendChild(q);
@@ -448,7 +444,6 @@ footer{
     var q=el("path",{"class":"border border--county",d:c.d});
     coPaths[c.name]=q; z.appendChild(q);
   });
-  G.munis.forEach(function(m){ if(m.f) z.appendChild(el("path",{"class":"focus-ring",d:m.d})); });
 
   var casings=el("g",{}), lines=el("g",{});
   G.rail.forEach(function(r){
