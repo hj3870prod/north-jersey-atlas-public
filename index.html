@@ -227,8 +227,30 @@ svg.dim .town:not(.on-t){opacity:.28}
   font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.14em;
   text-transform:uppercase; color:var(--faint); margin-right:2px;
 }
+/* Zoom controls sit on the map, where people look for them. */
+.mapctl{
+  position:absolute; top:22px; left:22px; z-index:4;
+  display:flex; flex-direction:column; align-items:stretch; gap:5px;
+}
+.mapctl button{
+  width:auto; min-width:38px; height:36px; padding:0 6px; justify-content:center; gap:0;
+  font-family:"IBM Plex Mono",monospace; font-size:19px; line-height:1;
+  color:var(--ink); background:var(--card); border:1px solid var(--hair);
+  border-radius:3px; box-shadow:0 1px 2px rgba(0,0,0,.12);
+}
+.mapctl button.reset{font-size:10.5px; height:25px; letter-spacing:.08em}
+.mapctl button:hover,.mapctl button:focus-visible{border-color:var(--accent); color:var(--accent-ink)}
+.mapctl .zlevel{
+  text-align:center; min-width:0; padding-top:1px; color:var(--muted);
+  background:var(--card); border-radius:3px;
+}
 .zoombar{display:flex; gap:5px; align-items:center}
 .zoombar button{padding:4px 10px; font-family:"IBM Plex Mono",monospace; min-width:34px; justify-content:center}
+.hint--zoom{font-style:normal; font-family:inherit; font-size:12.5px; color:var(--muted)}
+.hint--zoom b{
+  font-family:"IBM Plex Mono",monospace; font-weight:500; font-size:12px;
+  color:var(--ink); border:1px solid var(--rule); border-radius:2px; padding:1px 5px;
+}
 .zlevel{
   font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--faint);
   min-width:46px; text-align:right; font-variant-numeric:tabular-nums;
@@ -320,15 +342,17 @@ footer{
     </div>
     <div class="controls">
       <div class="readout" id="readout" aria-live="polite">Hover any town or station for its details.</div>
-      <div class="tools">
-        <div class="zoombar" id="zoom"></div>
-      </div>
+      <div class="hint hint--zoom">Zoom in with <b>Ctrl</b> + scroll, or the <b>+</b> and <b>&minus;</b> buttons on the map</div>
     </div>
     <div class="keyline">
       <ul class="legend" id="legend"></ul>
       <div class="views" id="views"><span class="vlabel">Jump to</span></div>
     </div>
-    <div class="frame"><svg id="map"></svg><div class="tip" id="tip" hidden></div></div>
+    <div class="frame">
+      <svg id="map"></svg>
+      <div class="mapctl" id="zoom"></div>
+      <div class="tip" id="tip" hidden></div>
+    </div>
     <div class="keyline">
       <ul class="keyrow" id="railkey"></ul>
       <div class="hint">Drag to pan &middot; double-click to zoom in, shift&#8209;double&#8209;click out &middot; ctrl or &#8984; with the scroll wheel also zooms. On a phone, pinch to zoom, then drag with one finger.</div>
@@ -650,12 +674,13 @@ footer{
   svg.addEventListener("dragstart",function(e){ e.preventDefault(); });
 
   var bar=document.getElementById("zoom");
-  [["\u2212","Zoom out",function(){zoomTo(k/1.6,W/2,H/2);}],
-   ["+","Zoom in",function(){zoomTo(k*1.6,W/2,H/2);}],
-   ["Reset","Reset the view",function(){fit(null);}]].forEach(function(spec){
+  [["+","Zoom in",     "",      function(){zoomTo(k*1.6,W/2,H/2);}],
+   ["\u2212","Zoom out","",     function(){zoomTo(k/1.6,W/2,H/2);}],
+   ["Reset","Reset the view","reset",function(){fit(null);}]].forEach(function(spec){
     var b=document.createElement("button"); b.type="button";
-    b.textContent=spec[0]; b.setAttribute("aria-label",spec[1]); b.title=spec[1];
-    b.addEventListener("click",function(){spec[2](); mark(null);});
+    b.textContent=spec[0]; b.className=spec[2];
+    b.setAttribute("aria-label",spec[1]); b.title=spec[1];
+    b.addEventListener("click",function(){spec[3](); mark(null);});
     bar.appendChild(b);
   });
   lvl=document.createElement("span"); lvl.className="zlevel";
