@@ -40,5 +40,14 @@ The page code is MIT licensed (see `LICENSE`). The data is licensed separately:
   coordinates rather than only a rendered image, that embedded data is a
   derivative database and carries ODbL's share-alike terms.
 
+- **House prices** — [Zillow Home Value Index](https://www.zillow.com/research/data/)
+  (ZHVI), the typical value for homes in the 35th–65th percentile, as a 12-month
+  median. Free to use with attribution; the credit is in the page footer. Zillow
+  publishes nothing for 54 of these 251 towns — mostly rural townships — and those
+  fall back to the Census figure rather than being estimated.
+- **Income, rent, population, tenure** — U.S. Census Bureau, American Community
+  Survey 2024 5-year estimates, joined on GEOID so every municipality is covered.
+  Being 5-year estimates they describe 2020–2024, not this month.
+
 Station symbols show which systems serve a stop, not which trains actually stop
 there — off-peak and weekend patterns differ.
